@@ -53,7 +53,7 @@ app.use(function (req, res, next) {
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, PATCH, DELETE');
 
     // Request headers you wish to allow
-    res.setHeader('Access-Control-Allow-Headers', 'X-Requested-With,content-type');
+	res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization");
 
     // Set to true if you need the website to include cookies in the requests sent
     // to the API (e.g. in case you use sessions)
@@ -64,12 +64,11 @@ app.use(function (req, res, next) {
 });
 // test route to make sure everything is working (accessed at GET http://localhost:8080/api)
 router.get('/', function(req, res) {
-	res.json({ message: 'hooray! welcome to our api!' });	
+	res.json({ message: 'hooray! welcome to our api!' });
 });
 
 router.route('/workspace')
 	.post(function(req, res) {
-		
 		var workspace = new Workspace();		// create a new instance of the Bear model
 		workspace.workspace = req.body.workspace;  // set the bears name (comes from the request)
 		workspace.userId = req.body.userId;  // set the bears name (comes from the request)
@@ -82,18 +81,22 @@ router.route('/workspace')
 
 			res.json({ message: 'workspace created!' });
 		});
-
-		
 	})
 
 	// get all the bears (accessed at GET http://localhost:8080/api/bears)
 	.get(function(req, res) {
-		Workspace.find(function(err, workspace) {
-			if (err)
-				res.send(err);
+		const userId = req.get('x-token-userid');
+		if(userId){
+			Workspace.find({ userId },function (err, workspace) {
+				if (err)
+					res.send(err);
 
-			res.json(workspace);
-		});
+				res.json(workspace);
+			});
+		}
+		else{
+		    res.json({ok:false, error: 'No data found.'});
+		}
 	});
 // on routes that end in /bears
 // ----------------------------------------------------
@@ -106,6 +109,24 @@ router.route('/get/:workspace')
 				res.send(err);
 			res.json(workspace);
 		});
+	});
+router.route('/getall/:userId')
+
+	// get the bear with that id
+	.get(function (req, res) {
+		const userId = req.params.userId;
+		console.log('--------test-----------',userId);
+		if (userId) {
+			Workspace.find({ userId }, function (err, workspace) {
+				if (err)
+					res.send(err);
+
+				res.json(workspace);
+			});
+		}
+		else {
+			res.json({ ok: false, error: 'No data found.' });
+		}
 	});
 router.route('/bears')
 
