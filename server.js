@@ -6,13 +6,15 @@ var express    = require('express');
 var bodyParser = require('body-parser');
 var app        = express();
 var morgan     = require('morgan');
-
+const axios = require('axios');
+const cors = require('cors')
 // configure app
 app.use(morgan('dev')); // log requests to the console
 
 // configure body parser
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
+app.use(cors());
 
 var port     = process.env.PORT || 3001; // set our port
 
@@ -47,7 +49,7 @@ router.use(function(req, res, next) {
 app.use(function (req, res, next) {
 
     // Website you wish to allow to connect
-    res.setHeader('Access-Control-Allow-Origin', 'http://localhost:3000');
+	res.setHeader('Access-Control-Allow-Origin', 'https://invitetoslack.netlify.com/');
 
     // Request methods you wish to allow
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, PATCH, DELETE');
@@ -67,6 +69,26 @@ router.get('/', function(req, res) {
 	res.json({ message: 'hooray! welcome to our api!' });
 });
 
+router.route('/invite/:email').get( (req, res) => {
+	const id = req.get('x-token-id');
+	const email = req.params.email;
+	const SLACK_INVITE_ENDPOINT = 'https://slack.com/api/users.admin.invite';
+	console.log(email, '--------tst--------', id);
+
+	Workspace.findById(id, function (err, workspace) {
+		if(err){
+			res.json({ ok: false, error: err })
+		}
+		else{
+			const token = workspace.token;
+			const QUERY_PARAMS = `email=${email}&token=${token}&set_active=true`;
+
+			axios.get(`${SLACK_INVITE_ENDPOINT}?${QUERY_PARAMS}`)
+				.then(({status, data}) => res.json(data))
+				.catch((error) => res.json({ok: false, error}))
+		}
+	});
+})
 router.route('/workspace')
 	.post(function(req, res) {
 		var workspace = new Workspace();		// create a new instance of the Bear model
@@ -86,6 +108,7 @@ router.route('/workspace')
 	// get all the bears (accessed at GET http://localhost:8080/api/bears)
 	.get(function(req, res) {
 		const userId = req.get('x-token-userid');
+		console.log(email,'--------tst--------',userId);
 		if(userId){
 			Workspace.find({ userId },function (err, workspace) {
 				if (err)
@@ -101,13 +124,47 @@ router.route('/workspace')
 // on routes that end in /bears
 // ----------------------------------------------------
 router.route('/get/:workspace')
-
 	// get the bear with that id
 	.get(function(req, res) {
 		Workspace.find({workspace: req.params.workspace}, function(err, workspace) {
 			if (err)
 				res.send(err);
-			res.json(workspace);
+
+    		if (workspace.length === 0){
+
+			}
+			else {
+			const [ workspaceData ] = workspace;
+			const SLACK_USERS_ENDPOINT = 'https://slack.com/api/users.list';
+			const QUERY_PARAMS = `token=${workspaceData.token}&presence=true`;
+
+			axios.get(`${SLACK_USERS_ENDPOINT}?${QUERY_PARAMS}`)
+				.then(({ status, data: { ok, members} }) => {
+					if(status===200 && ok){
+						let totalUsers = 0;
+						let onlineUsers = 0;
+						members.forEach((user) => {
+							if (user.id !== 'USLACKBOT' && !user.is_bot && !user.deleted) {
+								totalUsers++;
+								if (user.presence === 'active') {
+									onlineUsers++;
+								}
+							}
+						});
+						res.json({
+							ok: true,
+							id: workspaceData.id,
+							workspace_background: workspaceData.workspace_background,
+							workspace_image: workspaceData.workspace_image,
+							workspace: workspaceData.workspace,
+							totalUsers,
+							onlineUsers,
+						});
+					}
+					else{
+					}
+				});
+				}
 		});
 	});
 router.route('/getall/:userId')
@@ -115,7 +172,6 @@ router.route('/getall/:userId')
 	// get the bear with that id
 	.get(function (req, res) {
 		const userId = req.params.userId;
-		console.log('--------test-----------',userId);
 		if (userId) {
 			Workspace.find({ userId }, function (err, workspace) {
 				if (err)
@@ -127,76 +183,6 @@ router.route('/getall/:userId')
 		else {
 			res.json({ ok: false, error: 'No data found.' });
 		}
-	});
-router.route('/bears')
-
-	// create a bear (accessed at POST http://localhost:8080/bears)
-	.post(function(req, res) {
-		
-		var bear = new Bear();		// create a new instance of the Bear model
-		bear.name = req.body.name;  // set the bears name (comes from the request)
-
-		bear.save(function(err) {
-			if (err)
-				res.send(err);
-
-			res.json({ message: 'Bear created!' });
-		});
-
-		
-	})
-
-	// get all the bears (accessed at GET http://localhost:8080/api/bears)
-	.get(function(req, res) {
-		Bear.find(function(err, bears) {
-			if (err)
-				res.send(err);
-
-			res.json(bears);
-		});
-	});
-
-// on routes that end in /bears/:bear_id
-// ----------------------------------------------------
-router.route('/bears/:bear_id')
-
-	// get the bear with that id
-	.get(function(req, res) {
-		Bear.findById(req.params.bear_id, function(err, bear) {
-			if (err)
-				res.send(err);
-			res.json(bear);
-		});
-	})
-
-	// update the bear with this id
-	.put(function(req, res) {
-		Bear.findById(req.params.bear_id, function(err, bear) {
-
-			if (err)
-				res.send(err);
-
-			bear.name = req.body.name;
-			bear.save(function(err) {
-				if (err)
-					res.send(err);
-
-				res.json({ message: 'Bear updated!' });
-			});
-
-		});
-	})
-
-	// delete the bear with this id
-	.delete(function(req, res) {
-		Bear.remove({
-			_id: req.params.bear_id
-		}, function(err, bear) {
-			if (err)
-				res.send(err);
-
-			res.json({ message: 'Successfully deleted' });
-		});
 	});
 
 
