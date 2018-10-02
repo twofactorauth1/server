@@ -1,7 +1,3 @@
-// BASE SETUP
-// =============================================================================
-
-// call the packages we need
 var express    = require('express');
 var bodyParser = require('body-parser');
 var app        = express();
@@ -174,5 +170,4 @@ app.use('/api', router);
 
 // START THE SERVER
 // =============================================================================
-app.listen(port);
-console.log('Magic happens on port ' + port);
+app.listen(port, () => console.log('Magic happens on port ' + port));
